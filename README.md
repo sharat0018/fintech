@@ -4,6 +4,16 @@ FinSight AI is a next-generation autonomous financial intelligence platform. Des
 
 ---
 
+## Executive System Brief
+
+FinSight AI functions as an autonomous, real-time command console for corporate financial operations. The system bridges the gap between raw ledger transaction streams and multi-perspective executive intelligence:
+
+1. **Transaction Ingestion & Risk Scoring**: The system continuously processes bank ledger feeds, running them through local machine-learning anomaly detection algorithms to identify potential payment risks and duplicates in under 100ms.
+2. **Sequential Multi-Agent Orchestration**: Rather than triggering parallel independent LLM calls, the platform serializes requests through a system-wide execution lock (`ollama_lock`). Four expert agents (CFO, Risk, Forecast, Recommendation) evaluate the situation in a unified reasoning chain, streaming status logs sequentially.
+3. **Unified Single-Page Cockpit**: The UI acts as a single-screen command center. The permanent chatbot pane on the left can actively update, command, and toggle the active system views on the right (Dashboard, Simulator, Risk Radar, and Reports) in response to conversational prompts.
+
+---
+
 ## Key Capabilities
 
 *   **Unified Financial Cockpit**: A single-screen workspace where conversational CFO intelligence sits permanently next to interactive, command-responsive system tabs (Dashboard, Financial Twin, Risk Radar, Reports, Settings).
@@ -23,6 +33,73 @@ graph TD
     B -->|Serialized Lock| D[Ollama Local LLM]
     D -->|Sequential Stream| A
 ```
+
+---
+
+## Detailed Agent Flow Setup
+
+FinSight AI utilizes a structured, serialized multi-agent orchestration architecture to compile unified financial diagnostic results.
+
+```mermaid
+sequenceDiagram
+    participant UI as React Frontend
+    participant ORCH as Agent Orchestrator
+    participant CFO as CFO Agent
+    participant RISK as Risk Agent
+    participant FC as Forecast Agent
+    participant REC as Recommendation Agent
+    participant LOCK as Ollama Lock
+
+    UI->>ORCH: Request Analysis (Query + Metrics)
+    ORCH->>UI: Emit (Orchestrator: starting...)
+    
+    Note over ORCH, LOCK: Sequential Inference Execution
+    ORCH->>UI: Emit (CFOAgent: started)
+    ORCH->>CFO: Invoke CFO Analysis
+    CFO->>LOCK: Acquire Lock
+    LOCK-->>CFO: Lock Granted
+    CFO->>Ollama: Generate CFO Thoughts & Conclusion
+    Ollama-->>CFO: Response
+    CFO->>LOCK: Release Lock
+    CFO->>UI: Stream CFO thoughts
+    ORCH->>UI: Emit (CFOAgent: completed)
+    
+    ORCH->>UI: Emit (RiskAgent: started)
+    ORCH->>RISK: Invoke Risk Scan
+    RISK->>LOCK: Acquire Lock
+    LOCK-->>RISK: Lock Granted
+    RISK->>Ollama: Generate Risk Thoughts & Conclusion
+    Ollama-->>RISK: Response
+    RISK->>LOCK: Release Lock
+    RISK->>UI: Stream Risk thoughts
+    ORCH->>UI: Emit (RiskAgent: completed)
+
+    Note over ORCH, REC: Repeated sequentially for Forecast & Recommendation agents
+
+    ORCH->>UI: Emit (Orchestrator: synthesizing...)
+    ORCH-->>UI: Complete response payload (Consolidated Action Plan)
+```
+
+### Agent Roles & Specifications
+1. **CFO Agent**: Analyzes overall financial variance, calculates cash burn, interprets standard metrics, and parses custom user-directed queries.
+2. **Risk Agent**: Scans cash runway, flags burn-rate warning thresholds, analyzes vendor dependency concentration, and performs health diagnostic scoring.
+3. **Forecast Agent**: Evaluates monthly time-series ledger aggregates to project cash-flow forecasts and runway viability.
+4. **Recommendation Agent**: Synthesizes diagnostic inputs and risk data to formulate cost-saving adjustments and strategic business roadmaps.
+
+### Sequential Execution & Lock System (`ollama_lock`)
+To prevent concurrent requests from overloading local hardware running Ollama inference, the orchestrator implements a serialized lock pattern:
+* **Location**: `backend/app/agents/orchestrator.py`
+* **Mechanism**:
+  ```python
+  # Global synchronization lock
+  ollama_lock = asyncio.Lock()
+
+  async def _query_ollama_agent(system_prompt: str, user_prompt: str) -> Optional[dict]:
+      # Serializes access to local LLM inference across all agents
+      async with ollama_lock:
+          response = await client.generate(model="qwen3:14b", ...)
+  ```
+This ensures that only one local LLM inference call is active system-wide at any given moment, preventing GPU/CPU memory thrashing.
 
 ---
 
